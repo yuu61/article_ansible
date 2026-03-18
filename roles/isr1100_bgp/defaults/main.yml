@@ -1,0 +1,5 @@
+---
+bgp_asn: 65001
+bgp_router_id: ""
+bgp_peers: []
+bgp_networks: []

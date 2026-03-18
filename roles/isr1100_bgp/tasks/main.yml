@@ -1,0 +1,54 @@
+---
+# BGP設定
+#   - eBGP to IX3315 (AS65002) via IKEv2/IPsec tunnel
+#     → IX3315が0.0.0.0/0をeBGP広報 (AD20) → ISRのデフォルトルート
+#     → トンネル断時はDHCPデフォルト (AD254) へ自動フォールバック
+#   - BGP to AWS VGW (AS64512) via Site-to-Site VPN
+
+- name: BGPプロセスとrouter-idを設定
+  cisco.ios.ios_bgp_global:
+    config:
+      as_number: "{{ bgp_asn }}"
+      bgp:
+        router_id:
+          address: "{{ bgp_router_id }}"
+        log_neighbor_changes: true
+      neighbor: >-
+        {{
+          bgp_peers | map('combine', {}) | map('dict2items') | list
+          | map('items2dict') | list
+          | json_query('[].{
+              address: neighbor,
+              remote_as: remote_as,
+              description: description,
+              update_source: update_source,
+              timers: timers
+            }')
+        }}
+    state: merged
+
+- name: BGP neighborを個別設定 (timers等の細かい制御)
+  cisco.ios.ios_config:
+    lines:
+      - "neighbor {{ item.neighbor }} remote-as {{ item.remote_as }}"
+      - "neighbor {{ item.neighbor }} description {{ item.description }}"
+      - "neighbor {{ item.neighbor }} update-source {{ item.update_source }}"
+      - "{% if item.timers is defined %}neighbor {{ item.neighbor }} timers {{ item.timers.keepalive }} {{ item.timers.holdtime }}{% endif %}"
+    parents: "router bgp {{ bgp_asn }}"
+  loop: "{{ bgp_peers }}"
+  when: item.neighbor is defined
+
+- name: BGP address-family ipv4を設定
+  cisco.ios.ios_config:
+    lines: >-
+      {%- set lines = [] -%}
+      {%- for net in bgp_networks -%}
+        {%- set _ = lines.append('network ' ~ net.prefix ~ ' mask ' ~ net.mask) -%}
+      {%- endfor -%}
+      {%- for peer in bgp_peers -%}
+        {%- set _ = lines.append('neighbor ' ~ peer.neighbor ~ ' activate') -%}
+      {%- endfor -%}
+      {{ lines }}
+    parents:
+      - "router bgp {{ bgp_asn }}"
+      - "address-family ipv4 unicast"

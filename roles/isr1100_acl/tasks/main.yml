@@ -1,0 +1,28 @@
+---
+# 構成図ACLポリシー:
+#   vlan 40 (user) → vlan 11: DNS (53), DHCP (67-68) のみ許可
+#   vlan 40 (user) → 他 vlan: 拒否
+#   vlan 40 (user) → 0.0.0.0/0: 許可 (デフォルトルート経由)
+#   他 vlan 間: 相互通信許容
+
+- name: Extended ACLを設定 (user VLAN制限)
+  cisco.ios.ios_config:
+    lines: >-
+      {%- set lines = [] -%}
+      {%- for entry in acl_user_to_mgmt.entries -%}
+        {%- if entry.dst_port_eq is defined -%}
+          {%- set _ = lines.append(entry.sequence | string ~ ' ' ~ entry.action ~ ' ' ~ entry.protocol ~ ' ' ~ entry.source ~ ' ' ~ entry.destination ~ ' eq ' ~ entry.dst_port_eq | string) -%}
+        {%- elif entry.dst_port_range is defined -%}
+          {%- set _ = lines.append(entry.sequence | string ~ ' ' ~ entry.action ~ ' ' ~ entry.protocol ~ ' ' ~ entry.source ~ ' ' ~ entry.destination ~ ' range ' ~ entry.dst_port_range) -%}
+        {%- else -%}
+          {%- set _ = lines.append(entry.sequence | string ~ ' ' ~ entry.action ~ ' ' ~ entry.protocol ~ ' ' ~ entry.source ~ ' ' ~ entry.destination) -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {{ lines }}
+    parents: "ip access-list extended {{ acl_user_to_mgmt.name }}"
+
+- name: ACLをVlan40 (user) のinbound方向に適用
+  cisco.ios.ios_config:
+    lines:
+      - ip access-group {{ acl_user_to_mgmt.name }} in
+    parents: interface Vlan40

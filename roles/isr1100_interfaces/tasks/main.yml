@@ -1,0 +1,54 @@
+---
+- name: VLANを作成
+  cisco.ios.ios_vlans:
+    config:
+      - vlan_id: "{{ item.vlan_id }}"
+        name: "{{ item.name }}"
+        state: active
+    state: merged
+  loop: "{{ vlans }}"
+
+- name: VLAN SVIを設定
+  cisco.ios.ios_l3_interfaces:
+    config:
+      - name: "Vlan{{ item.vlan_id }}"
+        ipv4:
+          - address: "{{ item.gateway }}/{{ item.prefix }}"
+    state: merged
+  loop: "{{ vlans }}"
+
+- name: WANインターフェースを設定 (DHCP)
+  cisco.ios.ios_config:
+    lines:
+      - description {{ wan_interface.description }}
+      - ip address dhcp
+      - no shutdown
+    parents: "interface {{ wan_interface.name }}"
+  when: wan_interface.dhcp | default(false)
+
+- name: LANインターフェース (access) を設定
+  cisco.ios.ios_l2_interfaces:
+    config:
+      - name: "{{ item.name }}"
+        access:
+          vlan: "{{ item.native_vlan }}"
+    state: merged
+  loop: "{{ lan_interfaces | selectattr('mode', 'equalto', 'access') | list }}"
+
+- name: LANインターフェース (trunk) を設定
+  cisco.ios.ios_l2_interfaces:
+    config:
+      - name: "{{ item.name }}"
+        trunk:
+          allowed_vlans: "{{ item.allowed_vlans }}"
+    state: merged
+  loop: "{{ lan_interfaces | selectattr('mode', 'equalto', 'trunk') | list }}"
+
+- name: LANインターフェースのdescriptionとno shutdownを設定
+  cisco.ios.ios_interfaces:
+    config:
+      - name: "{{ item.name }}"
+        description: "{{ item.description }}"
+        enabled: true
+    state: merged
+  loop: "{{ lan_interfaces }}"

@@ -1,5 +1,5 @@
 ---
-- name: 全体デプロイ
+- name: ネットワーク機器デプロイ
   import_playbook: network.yml
 - name: ローカルサービスデプロイ
   import_playbook: local_services.yml

@@ -1,25 +1,160 @@
-# Cisco ISR1100 - 会場ルータ
-bgp_asn: 65001
-bgp_peers:
-  - name: ix3315
-    remote_as: 65002
-    description: "eBGP to IX3315 (IKEv2/IPsec tunnel)"
-  - name: vgw
-    remote_as: 64512
-    description: "primary BGP to AWS VGW"
+# Cisco ISR1100 (r3) - 会場ルータ AS65001
+# 構成図: https://github.com/yuu61/article_ansible
 
-interfaces:
-  - name: GigabitEthernet0/0/0
-    description: "WAN - via RTX1200 DHCP (AD254)"
+# --- VLAN定義 ---
+vlans:
+  - vlan_id: 11
+    name: mgmt
+    subnet: 192.168.11.0
+    prefix: 24
+    gateway: 192.168.11.1
+  - vlan_id: 20
+    name: live
+    subnet: 192.168.20.0
+    prefix: 24
+    gateway: 192.168.20.1
+  - vlan_id: 30
+    name: staff
+    subnet: 192.168.30.0
+    prefix: 24
+    gateway: 192.168.30.1
+  - vlan_id: 40
+    name: user
+    subnet: 192.168.40.0
+    prefix: 22
+    gateway: 192.168.40.1
+
+# --- 物理インターフェース ---
+wan_interface:
+  name: GigabitEthernet0/0/0
+  description: "WAN - RTX1200 DHCP (AD254 fallback)"
+  dhcp: true
+
+lan_interfaces:
   - name: GigabitEthernet0/1/0
-    description: "Local Server - native vlan 11"
-    vlan: 11
+    description: "Local Server"
+    mode: access
+    native_vlan: 11
   - name: GigabitEthernet0/1/1
-    description: "PoE Injector - trunk vlan 11,30,40"
-    allowed_vlans: [11, 30, 40]
-  - name: GigabitEthernet0/1/2
-    description: "PoE Injector - trunk vlan 11,30,40"
-    allowed_vlans: [11, 30, 40]
-  - name: GigabitEthernet0/1/7
-    description: "L2SW trunk"
+    description: "PoE Injector (AP1-2)"
     mode: trunk
+    allowed_vlans: "11,30,40"
+  - name: GigabitEthernet0/1/2
+    description: "PoE Injector (AP1-2)"
+    mode: trunk
+    allowed_vlans: "11,30,40"
+  - name: GigabitEthernet0/1/7
+    description: "L2SW S3100 trunk"
+    mode: trunk
+    allowed_vlans: "11,20,30,40"
+
+# --- BGP ---
+bgp_asn: 65001
+bgp_router_id: 192.168.11.1
+bgp_peers:
+  - neighbor: 10.255.0.1
+    remote_as: 65002
+    description: "eBGP to IX3315 via IKEv2/IPsec tunnel"
+    update_source: Tunnel0
+    timers:
+      keepalive: 10
+      holdtime: 30
+  - neighbor: 169.254.10.1
+    remote_as: 64512
+    description: "primary BGP to AWS VGW (tunnel1)"
+    update_source: Tunnel1
+  - neighbor: 169.254.11.1
+    remote_as: 64512
+    description: "primary BGP to AWS VGW (tunnel2)"
+    update_source: Tunnel2
+bgp_networks:
+  - prefix: 192.168.0.0
+    mask: 255.255.0.0
+
+# --- IKEv2/IPsec (IX3315向けトンネル) ---
+crypto_tunnel:
+  interface: Tunnel0
+  source: GigabitEthernet0/0/0
+  destination_fqdn: "ix3315.example.com"
+  tunnel_src_ip: 10.255.0.2
+  tunnel_dst_ip: 10.255.0.1
+  tunnel_mask: 255.255.255.252
+  ikev2_proposal: IKEv2-PROPOSAL
+  ikev2_policy: IKEv2-POLICY
+  ikev2_profile: IKEv2-PROFILE
+  ipsec_profile: IPsec-PROFILE
+  encryption: aes-cbc-256
+  integrity: sha512
+  dh_group: 19
+  prf: sha512
+  lifetime: 86400
+  ipsec_encryption: esp-aes 256
+  ipsec_integrity: esp-sha512-hmac
+
+# --- QoS (MQC) ---
+# 会場上流帯域が細いため出力側でシェーピング
+# 構成図の優先順位:
+#   1st: vlan 20 (live)  - 配信断は即アウト。帯域保証必須
+#   2nd: vlan 11 (mgmt)  - 監視は輻輳時こそ必要。低帯域で十分
+#   3rd: vlan 30 (staff) - 運営オペレーション維持
+#   4th: vlan 40 (user)  - ベストエフォート
+qos_shaping_rate_kbps: 50000
+qos_classes:
+  - name: LIVE
+    match_vlan: 20
+    priority_percent: 30
+  - name: MGMT
+    match_vlan: 11
+    bandwidth_percent: 10
+  - name: STAFF
+    match_vlan: 30
+    bandwidth_percent: 25
+  - name: USER
+    match_vlan: 40
+    bandwidth_percent: 25
+
+# --- ACL ---
+# vlan 40 (user) から vlan 11 (mgmt) への通信制限
+# DNS/DHCP のみ許可、それ以外は拒否
+# 他 vlan 間は相互通信許容
+acl_user_to_mgmt:
+  name: ACL-USER-TO-MGMT
+  entries:
+    - sequence: 10
+      action: permit
+      protocol: udp
+      source: 192.168.40.0 0.0.3.255
+      destination: 192.168.11.0 0.0.0.255
+      dst_port_eq: 53
+    - sequence: 20
+      action: permit
+      protocol: tcp
+      source: 192.168.40.0 0.0.3.255
+      destination: 192.168.11.0 0.0.0.255
+      dst_port_eq: 53
+    - sequence: 30
+      action: permit
+      protocol: udp
+      source: 192.168.40.0 0.0.3.255
+      destination: 192.168.11.0 0.0.0.255
+      dst_port_range: "67 68"
+    - sequence: 40
+      action: deny
+      protocol: ip
+      source: 192.168.40.0 0.0.3.255
+      destination: 192.168.11.0 0.0.0.255
+    - sequence: 50
+      action: deny
+      protocol: ip
+      source: 192.168.40.0 0.0.3.255
+      destination: 192.168.20.0 0.0.0.255
+    - sequence: 60
+      action: deny
+      protocol: ip
+      source: 192.168.40.0 0.0.3.255
+      destination: 192.168.30.0 0.0.0.255
+    - sequence: 1000
+      action: permit
+      protocol: ip
+      source: any
+      destination: any

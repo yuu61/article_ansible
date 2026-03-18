@@ -1,0 +1,3 @@
+---
+qos_shaping_rate_kbps: 50000
+qos_classes: []

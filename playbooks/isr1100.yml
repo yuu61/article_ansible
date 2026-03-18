@@ -1,0 +1,16 @@
+---
+# ISR1100 フルデプロイ
+# 実行順序: interfaces → ACL → QoS → crypto → BGP
+- name: Cisco ISR1100 設定デプロイ
+  hosts: isr1100
+  gather_facts: false
+  roles:
+    - isr1100_interfaces
+    - isr1100_acl
+    - isr1100_qos
+    - isr1100_crypto
+    - isr1100_bgp
+  post_tasks:
+    - name: running-configを保存
+      cisco.ios.ios_config:
+        save_when: always

@@ -1,0 +1,13 @@
+{# MQC 子policy-map: キューイングポリシー #}
+{# priority_percent → LLQ (priority queue), bandwidth_percent → CBWFQ #}
+{% for cls in qos_classes %}
+{% if cls.priority_percent is defined %}
+ class CM-{{ cls.name }}
+  priority percent {{ cls.priority_percent }}
+{% elif cls.bandwidth_percent is defined %}
+ class CM-{{ cls.name }}
+  bandwidth percent {{ cls.bandwidth_percent }}
+{% endif %}
+{% endfor %}
+ class class-default
+  fair-queue

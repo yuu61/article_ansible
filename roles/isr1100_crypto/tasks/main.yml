@@ -1,0 +1,54 @@
+---
+# IKEv2/IPsec トンネル設定 (IX3315向け)
+# BGPのアンダーレイとして使用
+
+- name: IKEv2 proposalを設定
+  cisco.ios.ios_config:
+    lines:
+      - encryption {{ crypto_tunnel.encryption }}
+      - integrity {{ crypto_tunnel.integrity }}
+      - group {{ crypto_tunnel.dh_group }}
+      - prf {{ crypto_tunnel.prf }}
+    parents: "crypto ikev2 proposal {{ crypto_tunnel.ikev2_proposal }}"
+
+- name: IKEv2 policyを設定
+  cisco.ios.ios_config:
+    lines:
+      - proposal {{ crypto_tunnel.ikev2_proposal }}
+    parents: "crypto ikev2 policy {{ crypto_tunnel.ikev2_policy }}"
+
+- name: IKEv2 profileを設定
+  cisco.ios.ios_config:
+    lines:
+      - match identity remote address 0.0.0.0
+      - authentication remote pre-share
+      - authentication local pre-share
+      - keyring local KR-IX3315
+      - lifetime {{ crypto_tunnel.lifetime }}
+    parents: "crypto ikev2 profile {{ crypto_tunnel.ikev2_profile }}"
+
+- name: IPsec transform-setを設定
+  cisco.ios.ios_config:
+    lines:
+      - "crypto ipsec transform-set TS-IX3315 {{ crypto_tunnel.ipsec_encryption }} {{ crypto_tunnel.ipsec_integrity }}"
+      - " mode tunnel"
+
+- name: IPsec profileを設定
+  cisco.ios.ios_config:
+    lines:
+      - set transform-set TS-IX3315
+      - set ikev2-profile {{ crypto_tunnel.ikev2_profile }}
+    parents: "crypto ipsec profile {{ crypto_tunnel.ipsec_profile }}"
+
+- name: Tunnelインターフェースを設定
+  cisco.ios.ios_config:
+    lines:
+      - description "IKEv2/IPsec to IX3315"
+      - ip address {{ crypto_tunnel.tunnel_src_ip }} {{ crypto_tunnel.tunnel_mask }}
+      - tunnel source {{ crypto_tunnel.source }}
+      - tunnel mode ipsec ipv4
+      - tunnel destination dynamic
+      - tunnel protection ipsec profile {{ crypto_tunnel.ipsec_profile }}
+      - no shutdown
+    parents: "interface {{ crypto_tunnel.interface }}"
+  when: crypto_tunnel.destination_fqdn is defined

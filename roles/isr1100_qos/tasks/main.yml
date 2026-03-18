@@ -1,0 +1,30 @@
+---
+# MQC (Modular QoS CLI) による出力シェーピング
+# 会場上流帯域が細いため ISR1100 の WAN 出力側で階層型シェーピング
+
+- name: QoS class-mapを設定
+  cisco.ios.ios_config:
+    lines:
+      - match vlan {{ item.match_vlan }}
+    parents: "class-map match-any CM-{{ item.name }}"
+  loop: "{{ qos_classes }}"
+
+- name: QoS 子policy-map (キューイング) を設定
+  cisco.ios.ios_config:
+    lines: "{{ lookup('template', 'child_policy_lines.j2') }}"
+    parents: "policy-map PM-QUEUING"
+
+- name: QoS 親policy-map (シェーピング) を設定
+  cisco.ios.ios_config:
+    lines:
+      - shape average {{ qos_shaping_rate_kbps * 1000 }}
+      - service-policy PM-QUEUING
+    parents:
+      - policy-map PM-SHAPING
+      - class class-default
+
+- name: QoSポリシーをWANインターフェースに適用
+  cisco.ios.ios_config:
+    lines:
+      - service-policy output PM-SHAPING
+    parents: "interface {{ wan_interface.name }}"
