@@ -1,0 +1,7 @@
+---
+- name: ローカルサービス設定
+  hosts: local_services
+  become: true
+  tasks:
+    - name: 疎通確認
+      ansible.builtin.ping:

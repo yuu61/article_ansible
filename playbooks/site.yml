@@ -1,0 +1,7 @@
+---
+- name: 全体デプロイ
+  import_playbook: network.yml
+- name: ローカルサービスデプロイ
+  import_playbook: local_services.yml
+- name: EC2サービスデプロイ
+  import_playbook: ec2_services.yml

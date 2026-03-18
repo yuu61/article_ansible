@@ -1,0 +1,25 @@
+# Cisco ISR1100 - 会場ルータ
+bgp_asn: 65001
+bgp_peers:
+  - name: ix3315
+    remote_as: 65002
+    description: "eBGP to IX3315 (IKEv2/IPsec tunnel)"
+  - name: vgw
+    remote_as: 64512
+    description: "primary BGP to AWS VGW"
+
+interfaces:
+  - name: GigabitEthernet0/0/0
+    description: "WAN - via RTX1200 DHCP (AD254)"
+  - name: GigabitEthernet0/1/0
+    description: "Local Server - native vlan 11"
+    vlan: 11
+  - name: GigabitEthernet0/1/1
+    description: "PoE Injector - trunk vlan 11,30,40"
+    allowed_vlans: [11, 30, 40]
+  - name: GigabitEthernet0/1/2
+    description: "PoE Injector - trunk vlan 11,30,40"
+    allowed_vlans: [11, 30, 40]
+  - name: GigabitEthernet0/1/7
+    description: "L2SW trunk"
+    mode: trunk

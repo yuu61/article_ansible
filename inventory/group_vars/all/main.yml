@@ -1,0 +1,16 @@
+# 全ホスト共通変数
+venue_network: 192.168.0.0/16
+mgmt_vlan: 11
+live_vlan: 20
+staff_vlan: 30
+user_vlan: 40
+
+mgmt_subnet: 192.168.11.0/24
+live_subnet: 192.168.20.0/24
+staff_subnet: 192.168.30.0/24
+user_subnet: 192.168.40.0/22
+
+dns_port: 53
+dhcp_ports:
+  - 67
+  - 68

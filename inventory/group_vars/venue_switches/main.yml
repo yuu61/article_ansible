@@ -1,0 +1,3 @@
+# 会場スイッチ共通変数
+ansible_become: true
+ansible_become_method: enable

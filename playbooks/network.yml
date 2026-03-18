@@ -1,0 +1,7 @@
+---
+- name: 会場ネットワーク機器設定
+  hosts: network_devices
+  gather_facts: false
+  tasks:
+    - name: 疎通確認
+      ansible.builtin.ping:

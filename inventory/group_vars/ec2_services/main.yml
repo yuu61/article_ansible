@@ -1,0 +1,6 @@
+# EC2サービス共通変数
+ansible_connection: ssh
+ansible_user: ec2-user
+ansible_become: true
+ansible_become_method: sudo
+ansible_ssh_private_key_file: ~/.ssh/aws_ec2.pem

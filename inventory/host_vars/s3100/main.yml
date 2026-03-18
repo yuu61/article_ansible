@@ -1,0 +1,8 @@
+# S3100-8TMS-P - 会場L2スイッチ (PoE)
+switch_ports:
+  - description: "AP - trunk vlan 11,30,40"
+    allowed_vlans: [11, 30, 40]
+  - description: "YouTube Live Streaming - native vlan 20"
+    native_vlan: 20
+  - description: "Speaker - native vlan 30"
+    native_vlan: 30

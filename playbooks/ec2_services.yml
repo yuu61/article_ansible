@@ -1,0 +1,7 @@
+---
+- name: EC2サービス設定
+  hosts: ec2_services
+  become: true
+  tasks:
+    - name: 疎通確認
+      ansible.builtin.ping:
